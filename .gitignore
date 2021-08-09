@@ -1,9 +1,10 @@
 # Custom
-runs/
-*.pt
 dynamicCode
 **/constant/polyMesh/
 *.stl
+assets/
+L.csv
+d.csv
 
 ### OpenFOAM ###
 # Timestep directories
