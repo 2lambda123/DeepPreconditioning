@@ -17,12 +17,15 @@ class _FvmOpenFOAM(Dataset):
     """Sparse finite volume matrices from an OpenFOAM simulation."""
 
     def __init__(self, data_root: str) -> None:
+        """Initialize list of files."""
         self.files = glob(data_root + "L*.npz")
 
     def __len__(self) -> int:
+        """Return length of data set."""
         return len(self.files)
 
     def __getitem__(self, idx: int) -> Tuple["ndarray", "ndarray", tuple, "Tensor"]:
+        """Return a single matrix from the data set."""
         l_matrix = load_npz(self.files[idx])
         row = l_matrix.row
         col = l_matrix.col

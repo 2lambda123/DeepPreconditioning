@@ -1,16 +1,16 @@
 """A collection of miscellaneous helper functions."""
 
-import shutil
 from time import time
 from typing import TYPE_CHECKING, Tuple
 
 import numpy as np
 import scipy.sparse.linalg as sla
-from scipy.sparse import coo_matrix
-from torch.utils.tensorboard import SummaryWriter
+from scipy.sparse import coo_matrix, tril, triu, diags
+import torch
 
 if TYPE_CHECKING:
     from numpy import ndarray
+    from torch import Tensor
 
 
 def _time_cg(l_matrix, rhs, preconditioner=None) -> Tuple["ndarray", int, float]:
@@ -19,7 +19,8 @@ def _time_cg(l_matrix, rhs, preconditioner=None) -> Tuple["ndarray", int, float]
     maxiter = 1024
     residuals = np.empty((maxiter, 2))
 
-    def callback(xk):
+    def callback(xk) -> None:
+        """Save residual after CG iteration."""
         nonlocal n_iter
         residuals[n_iter] = [n_iter + 1, np.sum((l_matrix * xk - rhs)**2)]
         n_iter += 1
@@ -36,17 +37,18 @@ def _time_cg(l_matrix, rhs, preconditioner=None) -> Tuple["ndarray", int, float]
     return residuals, n_iter, t1 - t0
 
 
-def evaluate(method, l_matrix, rhs, preconditioner=None) -> Tuple[float, int, float, float]:
+def evaluate(method: str, l_matrix, rhs, preconditioner=None) -> Tuple[float, int, float, float]:
     """Compute convergence speed, condition number, and density."""
     residuals, n_iter, time = _time_cg(l_matrix, rhs, preconditioner)
     np.savetxt(
-        "../assets/csv/residual_" + method + ".csv", residuals[:n_iter], fmt="%.32f", header="it,res", delimiter=",")
+        f"../assets/csv/residual_{method}.csv", residuals[:n_iter], fmt="%.32f", delimiter=",", header="it,res",
+        comments="")
 
     sigma = np.linalg.svd(l_matrix.dot(preconditioner).toarray(), compute_uv=False)
     kappa = sigma[0] / sigma[-1]
     density = preconditioner.nnz / np.prod(preconditioner.shape) * 100
 
-    return time, n_iter, kappa, density
+    return time * 1e3, n_iter, kappa, density
 
 
 def is_positive_definite(l_matrix_csv):
@@ -66,3 +68,22 @@ def is_positive_definite(l_matrix_csv):
         raise Exception("Non-positive definite matrix generated!")
 
     return l_matrix
+
+
+def power_iteration(matrix: "Tensor", max_iter: int = 8) -> "Tensor":
+    """Approximate the greatest (in absolute value) eigenvalue of the matrix."""
+    b_0 = torch.rand((matrix.shape[-1], 1), device=matrix.device, requires_grad=True)
+    for _ in range(max_iter):
+        b_1 = torch.mm(matrix, b_0)
+        b_0 = b_1 / torch.norm(b_1)
+    # Rayleigh quotient
+    return torch.mm(b_0.T, torch.mm(matrix, b_0)) / torch.norm(b_0)
+
+
+def split(matrix):
+    """Split the matrix into D (diagonal), L (strictly lower), and U (strictly upper)."""
+    diagval = matrix.diagonal()
+    L = tril(matrix, -1)
+    D = diags(diagval, 0)
+    U = triu(matrix, 1)
+    return L, D, U

@@ -1,20 +1,21 @@
-"""Generate OpenFOAM system matrices based on baffles or sludge patterns."""
+"""Generate OpenFOAM system matrices based on sludge patterns or baffles."""
 
 import subprocess
+import os
 from itertools import product
 
 import numpy as np
 import triangle as tr
 from scipy.sparse import save_npz
-from stl import mesh
 from src.utils import is_positive_definite
+from stl import mesh
 
 
 def _sludge_pattern(resolution: int = 128) -> None:
     """Create random sludge pattern at tank bottom."""
     x_pos = np.linspace(1, 25, num=resolution)
     y_pos = .0625 * x_pos - 6.0625
-    y_pos[1:-1] += np.random.normal(loc=.25, scale=.1, size=resolution - 2)
+    y_pos[1:-1] += np.random.normal(loc=.50, scale=.10, size=resolution - 2)
 
     vertices = np.zeros((2 * resolution, 3))
     vertices[:, 0] = np.concatenate((x_pos, x_pos[::-1]))

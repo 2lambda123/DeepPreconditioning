@@ -1,13 +1,13 @@
 """Training loop for PrecondNet based on OpenFOAM system matrix data set."""
 
-from typing import TYPE_CHECKING, Callable, Tuple
 from datetime import datetime
+from typing import TYPE_CHECKING, Callable, Tuple
 
 import torch
 from src.data_loader import init_loaders
-from src.loss import condition_loss
+from src.loss import condition_loss, power_iteration_loss
 from src.model import PrecondNet
-from src.utils import SummaryWriter
+from torch.utils.tensorboard import SummaryWriter
 
 from spconv import SparseConvTensor
 
@@ -54,13 +54,16 @@ def _train(
         optimizer: "Optimizer", validate: bool, writer: "SummaryWriter", device: "device") -> None:
     """Training loop for PrecondNet."""
     train_loader, val_loader, _ = init_loaders(data_root, pc_train, pc_val)
+    min_val_loss = 1e9
     for epoch in range(n_epochs):
         epoch_loss, model = _train_epoch(train_loader, model, criterion, optimizer, device)
-        torch.save(model.state_dict(), f"{writer.log_dir}/model.pt")
         writer.add_scalar("loss/train", epoch_loss / len(train_loader), epoch)
 
         if validate and epoch % 5 == 0:
-            val_loss = _validate(val_loader, model, criterion, device)
+            val_loss = _validate(val_loader, model, condition_loss, device)
+            if min_val_loss > val_loss:
+                torch.save(model.state_dict(), f"{writer.log_dir}/model.pt")
+                min_val_loss = val_loss
             writer.add_scalar("loss/val", val_loss / len(val_loader), epoch)
 
 
@@ -76,7 +79,7 @@ def main(config: dict) -> None:
     writer.add_hparams(config, metric_dict={})
 
     _train(
-        config["DATA_ROOT"], config["PC_TRAIN"], config["PC_VAL"], model, condition_loss, config["N_EPOCHS"], optimizer,
-        config["VALIDATE"], writer, device)
+        config["DATA_ROOT"], config["PC_TRAIN"], config["PC_VAL"], model, condition_loss, config["N_EPOCHS"],
+        optimizer, config["VALIDATE"], writer, device)
 
     writer.close()

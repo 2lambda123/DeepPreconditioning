@@ -2,13 +2,14 @@
 
 Further consider the approaches proposed in these papers.
 [1] http://www2.cs.cas.cz/semincm/lectures/2010-07-1920-DuintjerTebbens.pdf
-[2] https://arxiv.org/pdf/1202.1490.pdf
-[3] https://arxiv.org/pdf/1301.1107v6.pdf
+[2] https://arxiv.org/pdf/1301.1107v6.pdf
 """
 
 from typing import TYPE_CHECKING
 
 import torch
+
+from src.utils import power_iteration
 
 if TYPE_CHECKING:
     from torch import Tensor
@@ -20,11 +21,46 @@ def condition_loss(l_matrix: "Tensor", preconditioner: "Tensor") -> "Tensor":
     return sigma[0] / sigma[-1]
 
 
+def power_iteration_loss(l_matrix: "Tensor", preconditioner: "Tensor") -> "Tensor":
+    """Replace condition number by equivalent optimization problem.
+
+    Oseledets, Ivan, and Vladimir Fanaskov. "Direct optimization of BPX preconditioners." Journal of Computational and
+    Applied Mathematics (2021): 113811.
+    """
+    preconditioned = torch.sparse.mm(l_matrix, preconditioner).T
+
+    rho = power_iteration(preconditioned)
+    eye = torch.eye(preconditioned.shape[0], device=l_matrix.device)
+    return power_iteration(eye - preconditioned / rho)
+    # c_matrix = torch.eye(l_matrix.shape[-1], device=l_matrix.device) - preconditioned
+
+    # eigv, _ = torch.symeig(preconditioned, eigenvectors=True)
+    # print(f"kappa true {max(abs(eigv)) / min(abs(eigv))}")
+    # rho = max(abs(eigv))
+    # print(f"spectral true {max(abs(eigv))}")
+    # print(f"spectral bound {(1 + rho) / (1 - rho)}")
+    # quit()
+
+    # lambda_min = power_iteration(
+    #     preconditioned - lambda_max * torch.eye(l_matrix.shape[-1], device=l_matrix.device), max_iter=16)
+    # lambda_min += lambda_max
+    # return lambda_max / lambda_min
+
+
+def qr_loss(l_matrix: "Tensor", preconditioner: "Tensor", n_iter: int = 8) -> "Tensor":
+    """Estimate kappa with QR decomposition."""
+    preconditioned = torch.sparse.mm(l_matrix, preconditioner)
+    for _ in range(n_iter):
+        q_matrix, r_matrix = torch.qr(preconditioned)
+        preconditioned = r_matrix.matmul(q_matrix)
+    return preconditioned.diag()[0] / preconditioned.diag()[-1]
+
+
 def cholesky_iteration_loss(l_matrix: "Tensor", preconditioner: "Tensor", n_iter: int = 8) -> "Tensor":
     """Cholesky iterations for positive (semi-)definite matrices.
 
-    Krishnamoorthy, Aravindh, and Kenan Kocagoez. "Singular values using
-    cholesky decomposition." arXiv preprint arXiv:1202.1490 (2012).
+    Krishnamoorthy, Aravindh, and Kenan Kocagoez. "Singular Values using
+    Cholesky Decomposition." arXiv preprint arXiv:1202.1490 (2012).
     """
     # Algorithm 2.
     J_k = torch.sparse.mm(l_matrix, preconditioner)
@@ -66,19 +102,19 @@ def trace_loss(l_matrix: "Tensor", preconditioner: "Tensor") -> "Tensor":
     traces. Linear Algebra and its Applications. 29. 471-506.
     10.1016/0024-3795(80)90258-X.
     """
+    n_size = l_matrix.shape[-1]
     preconditioned = torch.sparse.mm(l_matrix, preconditioner)
-    n = preconditioned.shape[-1]
-    tr = preconditioned.trace()
-    tr_of_squared = torch.mm(preconditioned, preconditioned).trace()
+    # m_val = preconditioned.trace() / n_size
+    # s_val = ((preconditioned.mm(preconditioned)).trace() / n_size - m_val**2)**(1 / 2)
+    trace = preconditioned.trace()
+    trace_square = preconditioned.mm(preconditioned).trace()
 
     # Corollary 2.1 (ii).
-    # m = tr/n
-    # s = torch.sqrt(tr_of_squared/n-m**2)
-    # if not tr > 0 or not tr**2 > (n-1)*tr_of_squared:
+    # if not trace > 0 or not trace**2 > (n_size - 1) * trace_square:
     #     raise ValueError("Conditions of Corollary 2.1 (ii) not fulfilled.")
-    # return 1 + (2*s*(n-1)**(1/2)) / (m-s*(n-1)**(1/2))
+    # return 1 + (2 * s_val * (n_size - 1)**(1 / 2)) / (m_val - s_val * (n_size - 1)**(1 / 2))
 
-    p = tr**2 / tr_of_squared - (n - 1)
-    if not tr > 0 or not p > 0:
+    p_val = trace**2 / trace_square - (n_size - 1)
+    if not trace > 0 or not p_val > 0:
         raise ValueError("Conditions of Theorem 2.6 not fulfilled.")
-    return (1 + (1 - p**2) * (1 / 2)) / p
+    return (1 + (1 - p_val**2) * (1 / 2)) / p_val

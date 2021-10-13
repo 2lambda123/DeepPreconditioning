@@ -1,13 +1,25 @@
-"""Define convolutional neural network architecture for preconditioning."""
-import spconv
+"""Define convolutional neural network architecture for preconditioning.
+
+Classes:
+    PrecondNet: Fully convolutional model generating preconditioners.
+"""
+
+from typing import TYPE_CHECKING
+
 import torch
 from torch import nn
+
+import spconv
+
+if TYPE_CHECKING:
+    from torch import Tensor
 
 
 class PrecondNet(nn.Module):
     """CNN returns preconditioner for conjugate gradient solver."""
 
-    def __init__(self):
+    def __init__(self) -> None:
+        """Initialize model weights before training."""
         super(PrecondNet, self).__init__()
         self.layers = spconv.SparseSequential(
             spconv.SparseConv2d(1, 64, 1),
@@ -23,9 +35,10 @@ class PrecondNet(nn.Module):
             spconv.SparseConv2d(64, 1, 1),
         )
 
-    def forward(self, x):
-        x = self.layers(x).dense().squeeze()
-        L = torch.tril(x, diagonal=-1)
-        D = nn.functional.threshold(torch.diag(x), 1e-3, 1e-3)
-        x = L + torch.diag(D)
-        return x.mm(x.transpose(-2, -1))
+    def forward(self, tensor: "Tensor") -> "Tensor":
+        """Passing system matrix through model."""
+        tensor = self.layers(tensor).dense().squeeze()
+        lower = torch.tril(tensor, diagonal=-1)
+        diag = nn.functional.threshold(torch.diag(tensor), 1e-3, 1e-3)
+        tensor = lower + torch.diag(diag)
+        return tensor.mm(tensor.transpose(-2, -1))
