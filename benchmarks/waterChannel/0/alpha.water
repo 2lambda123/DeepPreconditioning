@@ -8,7 +8,7 @@
 FoamFile
 {
     version     2.0;
-    format      ascii;
+    format      binary;
     class       volScalarField;
     location    "0";
     object      alpha.water;
@@ -17,46 +17,28 @@ FoamFile
 
 dimensions      [0 0 0 0 0 0 0];
 
-internalField   uniform 1;
+internalField   uniform 0;
 
 boundaryField
 {
     inlet
     {
         type            fixedValue;
-        value           uniform 0.9982;
+        value           uniform 1;
+    }
+    walls
+    {
+        type            zeroGradient;
     }
     outlet
     {
-        type            inletOutlet;
-        inletValue      uniform 0.9982;
-        value           uniform 0.9982;
+        type            zeroGradient;
     }
-    outlet_bot
+    atmosphere
     {
         type            inletOutlet;
-        inletValue      uniform 0.9982;
-        value           uniform 0.9982;
-    }
-    bot
-    {
-        type            zeroGradient;
-    }
-    top
-    {
-        type            zeroGradient;
-    }
-    wall-surface_body
-    {
-        type            zeroGradient;
-    }
-    frontAndBackPlanes
-    {
-        type            empty;
-    }
-    baffle
-    {
-        type            zeroGradient;
+        inletValue      uniform 0;
+        value           uniform 0;
     }
 }
 

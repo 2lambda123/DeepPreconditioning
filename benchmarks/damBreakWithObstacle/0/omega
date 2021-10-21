@@ -11,52 +11,26 @@ FoamFile
     format      ascii;
     class       volScalarField;
     location    "0";
-    object      alpha.water;
+    object      omega;
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-dimensions      [0 0 0 0 0 0 0];
+dimensions      [0 0 -1 0 0 0 0];
 
-internalField   uniform 1;
+internalField   uniform 2;
 
 boundaryField
 {
-    inlet
-    {
-        type            fixedValue;
-        value           uniform 0.9982;
-    }
-    outlet
+    atmosphere
     {
         type            inletOutlet;
-        inletValue      uniform 0.9982;
-        value           uniform 0.9982;
+        inletValue      uniform 2;
+        value           uniform 2;
     }
-    outlet_bot
+    walls
     {
-        type            inletOutlet;
-        inletValue      uniform 0.9982;
-        value           uniform 0.9982;
-    }
-    bot
-    {
-        type            zeroGradient;
-    }
-    top
-    {
-        type            zeroGradient;
-    }
-    wall-surface_body
-    {
-        type            zeroGradient;
-    }
-    frontAndBackPlanes
-    {
-        type            empty;
-    }
-    baffle
-    {
-        type            zeroGradient;
+        type            omegaWallFunction;
+        value           uniform 2;
     }
 }
 

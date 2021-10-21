@@ -9,56 +9,47 @@ FoamFile
 {
     version     2.0;
     format      ascii;
-    class       volScalarField;
-    location    "0";
-    object      alpha.water;
+    class       volVectorField;
+    object      U;
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-dimensions      [0 0 0 0 0 0 0];
+#include        "include/initialConditions"
 
-internalField   uniform 1;
+dimensions      [0 1 -1 0 0 0 0];
+
+internalField   uniform (0 0 0);
 
 boundaryField
 {
     inlet
     {
-        type            fixedValue;
-        value           uniform 0.9982;
+        type            variableHeightFlowRateInletVelocity;
+        flowRate        $inletFlowRate;
+        alpha           alpha.water;
+        value           uniform (0 0 0);
     }
+
     outlet
     {
-        type            inletOutlet;
-        inletValue      uniform 0.9982;
-        value           uniform 0.9982;
-    }
-    outlet_bot
-    {
-        type            inletOutlet;
-        inletValue      uniform 0.9982;
-        value           uniform 0.9982;
-    }
-    bot
-    {
         type            zeroGradient;
     }
-    top
+
+    lowerWall
     {
-        type            zeroGradient;
+        type            noSlip;
     }
-    wall-surface_body
+
+    atmosphere
     {
-        type            zeroGradient;
+        type            pressureInletOutletVelocity;
+        value           uniform (0 0 0);
     }
-    frontAndBackPlanes
+
+    defaultFaces
     {
         type            empty;
     }
-    baffle
-    {
-        type            zeroGradient;
-    }
 }
-
 
 // ************************************************************************* //

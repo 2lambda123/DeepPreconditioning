@@ -3,6 +3,7 @@
 Further consider the approaches proposed in these papers.
 [1] http://www2.cs.cas.cz/semincm/lectures/2010-07-1920-DuintjerTebbens.pdf
 [2] https://arxiv.org/pdf/1301.1107v6.pdf
+[3] https://joshuagoings.com/2013/08/23/davidsons-method/
 """
 
 from typing import TYPE_CHECKING
@@ -32,19 +33,6 @@ def power_iteration_loss(l_matrix: "Tensor", preconditioner: "Tensor") -> "Tenso
     rho = power_iteration(preconditioned)
     eye = torch.eye(preconditioned.shape[0], device=l_matrix.device)
     return power_iteration(eye - preconditioned / rho)
-    # c_matrix = torch.eye(l_matrix.shape[-1], device=l_matrix.device) - preconditioned
-
-    # eigv, _ = torch.symeig(preconditioned, eigenvectors=True)
-    # print(f"kappa true {max(abs(eigv)) / min(abs(eigv))}")
-    # rho = max(abs(eigv))
-    # print(f"spectral true {max(abs(eigv))}")
-    # print(f"spectral bound {(1 + rho) / (1 - rho)}")
-    # quit()
-
-    # lambda_min = power_iteration(
-    #     preconditioned - lambda_max * torch.eye(l_matrix.shape[-1], device=l_matrix.device), max_iter=16)
-    # lambda_min += lambda_max
-    # return lambda_max / lambda_min
 
 
 def qr_loss(l_matrix: "Tensor", preconditioner: "Tensor", n_iter: int = 8) -> "Tensor":

@@ -1,6 +1,6 @@
 """Test preconditioner performance of trained PrecondNet."""
 
-from time import time
+from time import perf_counter
 
 import numpy as np
 import torch
@@ -31,34 +31,35 @@ def _analytical_preconditioner(method: str, matrix):
         Pr = lil_matrix(Pr)
         Pc = lil_matrix(Pc)
         return sla.inv((Pr.T * (L * D * L.T) * Pc.T).tocsc())
-    elif method == "amg":
-        preconditioner = smoothed_aggregation_solver(matrix).aspreconditioner(cycle="V")
-        return csr_matrix(preconditioner.matmat(np.eye(matrix.shape[0], dtype=np.float32)))
     elif method == "ssor":
-        omega = 1.0
+        omega = 1.1
         L, D, _ = split(matrix)
         M = omega / (2 - omega) * (1 / omega * D + L) * sla.inv(D.tocsc()) * (1 / omega * D + L).T
         return sla.inv(M.tocsc())
     elif method == "ilu":
-        lu = sla.spilu(matrix.tocsc(), drop_tol=1e-3)
+        lu = sla.spilu(matrix.tocsc(), drop_tol=1e-2)
         n = matrix.shape[0]
         Pr = csc_matrix((np.ones(n), (lu.perm_r, np.arange(n))))
         Pc = csc_matrix((np.ones(n), (np.arange(n), lu.perm_c)))
         return csr_matrix(sla.inv(csc_matrix((Pr.T * (lu.L * lu.U) * Pc.T).A)))
     elif method == "polynomial":
         # Neumann series
-        M = diags(matrix.diagonal()).toarray()
-        N = M - matrix
-        G = np.matmul(np.linalg.inv(M), N)
-        return csr_matrix(np.matmul(eye(matrix.shape[0]) + G + np.matmul(G, G), np.linalg.inv(M)))
+        D = diags(matrix.diagonal()).toarray()
+        C = D - matrix
+        G = np.matmul(C, np.linalg.inv(D))
+        return csr_matrix(np.matmul(np.linalg.inv(D), eye(matrix.shape[0]) + G))
+    elif method == "multigrid":
+        preconditioner = smoothed_aggregation_solver(
+            matrix, aggregate="naive", max_levels=2, coarse_solver="gauss_seidel").aspreconditioner(cycle="F")
+        return csr_matrix(preconditioner.matmat(np.eye(matrix.shape[0], dtype=np.float32)))
 
 
 def _test(data_root: str, pc_train: float, pc_val: float, model, device) -> None:
     """Test loop for whole test data set."""
     model.eval()
     _, _, test_loader = init_loaders(data_root, pc_train, pc_val)
-    methods = ["vanilla", "jacobi", "ic", "amg", "ssor", "ilu", "polynomial"]
-    params = ["tsetup", "tconverge", "niter", "kappa", "density"]
+    methods = ["vanilla", "jacobi", "ic", "multigrid", "ssor", "ilu", "polynomial"]
+    params = ["tsetup", "tconverge", "niter", "kappa", "density", "info"]
     results = np.zeros((len(test_loader), len(methods) + 1, len(params)))
 
     for idx, (features, coors, shape, l_matrix) in enumerate(test_loader):
@@ -66,18 +67,18 @@ def _test(data_root: str, pc_train: float, pc_val: float, model, device) -> None
         rhs = np.random.randn(shape[0])
 
         for idy, method in enumerate(methods):
-            t0 = time()
+            tic = perf_counter()
             preconditioner = _analytical_preconditioner(method, l_matrix)
-            t1 = time()
-            results[idx, idy, 0] = 1e3 * (t1 - t0)
+            toc = perf_counter()
+            results[idx, idy, 0] = 1e3 * (toc - tic)
             results[idx, idy, 1:] = evaluate(method, l_matrix, rhs, preconditioner)
 
         # learned preconditioner
         sp_tensor = SparseConvTensor(features.T.to(device), coors.int().squeeze(), shape, 1)
-        t0 = time()
+        tic = perf_counter()
         preconditioner = csr_matrix(model(sp_tensor).detach().cpu().numpy())
-        t1 = time()
-        results[idx, -1, 0] = 1e3 * (t1 - t0)
+        toc = perf_counter()
+        results[idx, -1, 0] = 1e3 * (toc - tic)
         results[idx, -1, 1:] = evaluate("learned", l_matrix, rhs, preconditioner)
 
     for idx, param in enumerate(params):

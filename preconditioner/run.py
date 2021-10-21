@@ -1,10 +1,11 @@
 """Main pipeline for training and testing PrecondNet."""
 
-from src import generate_data, train, test
+from src import benchmark, generate_data, test, train
 
 
 def main(config: dict) -> None:
     # generate_data.main(config)
+    # benchmark.main()
 
     # train.main(config)
     test.main(config)
@@ -15,13 +16,13 @@ if __name__ == "__main__":
         "SEED": 42,
         "N_THREADS": 20,
         "DEVICE": "cuda:0",
-        "DATA_ROOT": "../assets/data/cells_02/",
-        "DATA_COUNT": 100,
-        "PC_TRAIN": 0.0,
-        "PC_VAL": 0.0,
+        "DATA_ROOT": "../assets/data/benchmarks/",
+        "DATA_COUNT": 1,
+        "PC_TRAIN": 0.00,
+        "PC_VAL": 0.00,
         "VALIDATE": True,
         "N_EPOCHS": 512,
-        "LOAD_MODEL": "../assets/runs/2021-10-11_15:42:28/model.pt",
+        "LOAD_MODEL": "../assets/runs/best/model.pt",
     }
 
     main(config)

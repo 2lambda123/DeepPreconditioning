@@ -5,8 +5,8 @@ from typing import TYPE_CHECKING, Tuple
 
 import numpy as np
 import scipy.sparse.linalg as sla
-from scipy.sparse import coo_matrix, tril, triu, diags
 import torch
+from scipy.sparse import coo_matrix, diags, tril, triu
 
 if TYPE_CHECKING:
     from numpy import ndarray
@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 def _time_cg(l_matrix, rhs, preconditioner=None) -> Tuple["ndarray", int, float]:
     """Clock CG solver with and w/o preconditioner."""
     n_iter = 0
-    maxiter = 1024
+    maxiter = 256
     residuals = np.empty((maxiter, 2))
 
     def callback(xk) -> None:
@@ -26,20 +26,20 @@ def _time_cg(l_matrix, rhs, preconditioner=None) -> Tuple["ndarray", int, float]
         n_iter += 1
 
     if preconditioner is None:
-        t0 = time()
-        _, _ = sla.cg(l_matrix, rhs, maxiter=maxiter, callback=callback)
-        t1 = time()
+        tic = time()
+        _, info = sla.cg(l_matrix, rhs, tol=1e-08, maxiter=maxiter, callback=callback)
+        toc = time()
     else:
-        t0 = time()
-        _, _ = sla.cg(l_matrix, rhs, M=preconditioner, maxiter=maxiter, callback=callback)
-        t1 = time()
+        tic = time()
+        _, info = sla.cg(l_matrix, rhs, tol=1e-08, M=preconditioner, maxiter=maxiter, callback=callback)
+        toc = time()
 
-    return residuals, n_iter, t1 - t0
+    return residuals, n_iter, toc - tic, info
 
 
 def evaluate(method: str, l_matrix, rhs, preconditioner=None) -> Tuple[float, int, float, float]:
     """Compute convergence speed, condition number, and density."""
-    residuals, n_iter, time = _time_cg(l_matrix, rhs, preconditioner)
+    residuals, n_iter, time, info = _time_cg(l_matrix, rhs, preconditioner)
     np.savetxt(
         f"../assets/csv/residual_{method}.csv", residuals[:n_iter], fmt="%.32f", delimiter=",", header="it,res",
         comments="")
@@ -48,7 +48,7 @@ def evaluate(method: str, l_matrix, rhs, preconditioner=None) -> Tuple[float, in
     kappa = sigma[0] / sigma[-1]
     density = preconditioner.nnz / np.prod(preconditioner.shape) * 100
 
-    return time * 1e3, n_iter, kappa, density
+    return time * 1e3, n_iter, kappa, density, info
 
 
 def is_positive_definite(l_matrix_csv):
